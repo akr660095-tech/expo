@@ -1,0 +1,290 @@
+// App.js
+import React, { useState, createContext, useContext } from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import { createStackNavigator } from "@react-navigation/stack";
+import {
+  View,
+  Text,
+  SafeAreaView,
+  FlatList,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+  StatusBar,
+  Alert,
+  Linking,
+} from "react-native";
+
+const Stack = createStackNavigator();
+
+/* ---------- Cart Context ---------- */
+const CartContext = createContext();
+function useCart() {
+  return useContext(CartContext);
+}
+
+/* ---------- Sample products ---------- */
+const SAMPLE_PRODUCTS = [
+  {
+    id: "p1",
+    title: "Minimal Poster - Sunset",
+    price: 299,
+    image: "https://images.unsplash.com/photo-1503264116251-35a269479413?w=800",
+    description: "High-res poster design, printable up to A2.",
+  },
+  {
+    id: "p2",
+    title: "Abstract Art - Waves",
+    price: 399,
+    image: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800",
+    description: "Abstract digital artwork, layered PSD included.",
+  },
+];
+
+/* ---------- Home Screen ---------- */
+function HomeScreen({ navigation }) {
+  const renderItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => navigation.navigate("Product", { product: item })}
+    >
+      <Image source={{ uri: item.image }} style={styles.cardImage} />
+      <View style={{ flex: 1, paddingLeft: 12 }}>
+        <Text style={styles.cardTitle}>{item.title}</Text>
+        <Text style={styles.cardPrice}>₹{item.price}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <View style={styles.header}>
+        <Image source={require("./assets/logo.png")} style={styles.logo} />
+        <Text style={styles.headerTitle}>AK Creator Store</Text>
+        <TouchableOpacity
+          style={styles.cartButton}
+          onPress={() => navigation.navigate("Cart")}
+        >
+          <Text style={styles.cartButtonText}>Cart</Text>
+        </TouchableOpacity>
+      </View>
+
+      <FlatList
+        data={SAMPLE_PRODUCTS}
+        keyExtractor={(i) => i.id}
+        renderItem={renderItem}
+        contentContainerStyle={{ padding: 12 }}
+      />
+    </SafeAreaView>
+  );
+}
+
+/* ---------- Product Screen ---------- */
+function ProductScreen({ route }) {
+  const { product } = route.params;
+  const { addToCart } = useCart();
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.productContainer}>
+        <Image source={{ uri: product.image }} style={styles.productImage} />
+        <Text style={styles.productTitle}>{product.title}</Text>
+        <Text style={styles.productDesc}>{product.description}</Text>
+        <Text style={styles.productPrice}>₹{product.price}</Text>
+
+        <TouchableOpacity
+          style={styles.buyButton}
+          onPress={() => {
+            addToCart(product);
+            Alert.alert("Added", "Product added to cart.");
+          }}
+        >
+          <Text style={styles.buyButtonText}>Add to Cart</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+/* ---------- Cart Screen ---------- */
+function CartScreen() {
+  const { items, removeFromCart, clearCart } = useCart();
+  const total = items.reduce((s, it) => s + it.price, 0);
+
+  const handleCheckout = async () => {
+    if (items.length === 0) {
+      Alert.alert("Cart Empty", "Please add items first.");
+      return;
+    }
+
+    // 👉 यहाँ अपना UPI ID डालें
+    const upiId = "yourupiid@upi"; // अपना UPI ID
+    const payeeName = "AK Creator"; // आपका नाम
+    const txnNote = "Design Purchase";
+    const txnId = "TID" + Date.now();
+
+    const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(
+      payeeName
+    )}&mc=0000&tid=${txnId}&tr=${txnId}&tn=${encodeURIComponent(
+      txnNote
+    )}&am=${total}&cu=INR`;
+
+    const supported = await Linking.canOpenURL(upiUrl);
+    if (supported) {
+      Linking.openURL(upiUrl);
+    } else {
+      Alert.alert(
+        "UPI Not Supported",
+        `Please pay manually to this UPI ID: ${upiId}`
+      );
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={{ padding: 12 }}>
+        <Text style={styles.sectionTitle}>Your Cart</Text>
+        {items.length === 0 ? (
+          <Text style={{ color: "#ddd", marginTop: 8 }}>कार्ट खाली है।</Text>
+        ) : (
+          <>
+            {items.map((it) => (
+              <View key={it.id} style={styles.cartItem}>
+                <Image source={{ uri: it.image }} style={styles.cartImage} />
+                <View style={{ flex: 1, paddingLeft: 10 }}>
+                  <Text style={{ color: "white" }}>{it.title}</Text>
+                  <Text style={{ color: "#ddd" }}>₹{it.price}</Text>
+                </View>
+                <TouchableOpacity onPress={() => removeFromCart(it.id)}>
+                  <Text style={{ color: "#ff6666" }}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+
+            <View style={styles.totalRow}>
+              <Text style={styles.totalText}>Total:</Text>
+              <Text style={styles.totalAmount}>₹{total}</Text>
+            </View>
+
+            <TouchableOpacity style={styles.checkoutBtn} onPress={handleCheckout}>
+              <Text style={styles.checkoutText}>Checkout with UPI</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.checkoutBtn, { backgroundColor: "#444", marginTop: 8 }]}
+              onPress={clearCart}
+            >
+              <Text style={styles.checkoutText}>Clear Cart</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+    </SafeAreaView>
+  );
+}
+
+/* ---------- Root App ---------- */
+export default function App() {
+  const [items, setItems] = useState([]);
+
+  function addToCart(product) {
+    setItems((s) => [...s, product]);
+  }
+  function removeFromCart(id) {
+    setItems((s) => s.filter((i) => i.id !== id));
+  }
+  function clearCart() {
+    setItems([]);
+  }
+
+  const cart = { items, addToCart, removeFromCart, clearCart };
+
+  return (
+    <CartContext.Provider value={cart}>
+      <NavigationContainer>
+        <Stack.Navigator
+          screenOptions={{
+            headerStyle: { backgroundColor: "#000" },
+            headerTintColor: "#fff",
+            cardStyle: { backgroundColor: "#000" },
+          }}
+        >
+          <Stack.Screen name="Home" component={HomeScreen} />
+          <Stack.Screen
+            name="Product"
+            component={ProductScreen}
+            options={({ route }) => ({ title: route.params.product.title })}
+          />
+          <Stack.Screen name="Cart" component={CartScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </CartContext.Provider>
+  );
+}
+
+/* ---------- Styles ---------- */
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#000" },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderBottomColor: "#222",
+    borderBottomWidth: 1,
+  },
+  logo: { width: 44, height: 44, resizeMode: "contain", borderRadius: 6 },
+  headerTitle: { color: "#fff", fontSize: 18, fontWeight: "700", marginLeft: 10, flex: 1 },
+  cartButton: { padding: 8, backgroundColor: "#222", borderRadius: 6 },
+  cartButtonText: { color: "#fff" },
+
+  card: {
+    flexDirection: "row",
+    backgroundColor: "#0b0b0b",
+    borderRadius: 8,
+    overflow: "hidden",
+    marginBottom: 12,
+    alignItems: "center",
+  },
+  cardImage: { width: 100, height: 100 },
+  cardTitle: { color: "#fff", fontWeight: "600", fontSize: 16 },
+  cardPrice: { color: "#ffdd57", marginTop: 6 },
+
+  productContainer: { padding: 12 },
+  productImage: { width: "100%", height: 250, borderRadius: 8 },
+  productTitle: { color: "#fff", fontSize: 20, fontWeight: "700", marginTop: 12 },
+  productDesc: { color: "#ddd", marginTop: 8 },
+  productPrice: { color: "#ffdd57", marginTop: 12, fontWeight: "700", fontSize: 18 },
+  buyButton: {
+    marginTop: 16,
+    backgroundColor: "#ffd23f",
+    padding: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  buyButtonText: { fontWeight: "700" },
+
+  sectionTitle: { color: "#fff", fontSize: 18, fontWeight: "700" },
+  cartItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    backgroundColor: "#0b0b0b",
+    padding: 8,
+    borderRadius: 8,
+  },
+  cartImage: { width: 56, height: 56, borderRadius: 6 },
+
+  totalRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 16 },
+  totalText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  totalAmount: { color: "#ffdd57", fontWeight: "700", fontSize: 16 },
+
+  checkoutBtn: {
+    marginTop: 12,
+    backgroundColor: "#0a84ff",
+    padding: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  checkoutText: { color: "#fff", fontWeight: "700" },
+});
